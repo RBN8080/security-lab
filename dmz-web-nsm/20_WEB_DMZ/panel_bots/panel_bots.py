@@ -28,6 +28,8 @@ import unicodedata
 
 RAFAGA_PAUSA = 20   # s sin peticiones de esa IP para dar la rafaga por terminada
 RAFAGA_MIN = 10     # peticiones minimas para resumirla
+REDIBUJO_PAUSA = 1  # s que la ventana debe quedar quieta tras redimensionarla para redibujar
+MEMORIA_FILAS = 500 # lineas que se guardan para redibujar
 UA_PROPIO = "vigilante-lab"
 
 MESES = {m: i for i, m in enumerate("Jan Feb Mar Apr May Jun Jul Aug Sep Oct Nov Dec".split(), 1)}
@@ -193,6 +195,8 @@ class Pantalla:
     def __init__(self, cols, color):
         self.color = color
         self.filas = 0
+        self.memoria = collections.deque(maxlen=MEMORIA_FILAS)
+        self.pendiente = None
         self.calcula(cols)
 
     def calcula(self, cols):
@@ -210,18 +214,36 @@ class Pantalla:
         self.wp = max(10, resto)                                           # RUTA
 
     def ajusta(self, cols):
-        """La ventana cambio de ancho: recalcular columnas y repetir la cabecera."""
-        if cols and max(cols, 60) != self.cols:
+        """La ventana cambio de ancho. Se espera a que quede quieta REDIBUJO_PAUSA segundos (mientras
+        se arrastra el borde llegan muchos anchos) y entonces se redibuja todo con el ancho nuevo:
+        la terminal no reacomoda lo ya impreso, asi que se borra y se vuelve a pintar desde memoria."""
+        cols = max(cols, 60) if cols else 0
+        if not cols or cols == self.cols:
+            self.pendiente = None
+            return
+        ahora = time.time()
+        if self.pendiente is None or self.pendiente[0] != cols:
+            self.pendiente = (cols, ahora)
+            return
+        if ahora - self.pendiente[1] >= REDIBUJO_PAUSA:
+            self.pendiente = None
             self.calcula(cols)
-            self.cabecera()
+            self.redibuja()
+
+    def redibuja(self):
+        self.escribe("\033[H\033[2J\033[3J", fin="")   # borra pantalla e historial de la ventana
+        self.filas = 0
+        self.cabecera()
+        for tipo, x in list(self.memoria):
+            self.salida(tipo, x, guardar=False)
 
     def pinta(self, txt, c):
         return "\033[%sm%s\033[0m" % (c, txt) if (self.color and c) else txt
 
-    def escribe(self, texto):
+    def escribe(self, texto, fin="\n"):
         while True:
             try:
-                print(texto, flush=True)
+                print(texto, end=fin, flush=True)
                 return
             except BlockingIOError:  # la terminal va atrasada: esperar, no morir
                 time.sleep(0.05)
@@ -249,10 +271,26 @@ class Pantalla:
             self.escribe(self.pinta(linea, "2"))
         self.cabecera()
 
-    def nota(self, texto):
-        self.escribe(self.pinta(texto, "2"))
+    def salida(self, tipo, x, guardar=True):
+        """Todo lo que se muestra pasa por aqui y queda en memoria para poder redibujarlo."""
+        if guardar:
+            self.memoria.append((tipo, x))
+        if tipo == "fila":
+            self.escribe(self.texto_fila(x))
+            self.filas += 1
+            if self.filas % 40 == 0:
+                self.cabecera()
+        else:
+            texto, color = x
+            self.escribe(self.pinta(texto, color))
+
+    def nota(self, texto, color="2"):
+        self.salida("texto", (texto, color))
 
     def fila(self, d):
+        self.salida("fila", d)
+
+    def texto_fila(self, d):
         v = d["vista"]
         t = "%-8s  %-15s " % (d["hora"], d["ip"]) + self.pinta("%-6s" % v, COLOR.get(v, "2")) + " "
         t += "%-*s " % (self.wl, corta(d["lugar"], self.wl))
@@ -269,10 +307,7 @@ class Pantalla:
             t += " | " + corta(d["ua"] if d["ua"] not in ("", "-") else "(sin navegador)", self.wua)
         if d["alerta"]:
             t += " " + self.pinta("!!", "31;1")
-        self.escribe(t)
-        self.filas += 1
-        if self.filas % 40 == 0:
-            self.cabecera()
+        return t
 
 
 class Rafagas:
@@ -346,10 +381,9 @@ class Rafagas:
             resultado, c = "no consiguio nada", "33;1"
         dur = int(r["fin"] - r["ini"])
         p = self.pantalla
-        p.escribe(p.pinta(">> RAFAGA %s-%s  %s  %s  (%s)" % (r["hora_ini"], r["hora_fin"], quien, donde,
-                                                              historia), c))
-        p.escribe(p.pinta("   %d peticiones en %d s: %s. Ej: %s. Resultado: %s (%s)"
-                          % (r["n"], dur, buscaba, ejemplos, resultado, codigos), c))
+        p.nota(">> RAFAGA %s-%s  %s  %s  (%s)" % (r["hora_ini"], r["hora_fin"], quien, donde, historia), c)
+        p.nota("   %d peticiones en %d s: %s. Ej: %s. Resultado: %s (%s)"
+               % (r["n"], dur, buscaba, ejemplos, resultado, codigos), c)
 
 
 def main():

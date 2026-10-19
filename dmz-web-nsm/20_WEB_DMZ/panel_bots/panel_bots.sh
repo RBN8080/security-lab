@@ -98,7 +98,7 @@ transmitir() {
 
 # El ancho de la ventana se sigue en vivo: el visor lo lee de este archivo
 ANCHO_ARCH=$(mktemp "${TMPDIR:-/tmp}/panel_ancho.XXXXXX"); echo "$COLS" > "$ANCHO_ARCH"
-( while sleep 2; do a=$(ancho_tty) && echo "$a" > "$ANCHO_ARCH.tmp" && mv -f "$ANCHO_ARCH.tmp" "$ANCHO_ARCH"; done ) &
+( while sleep 1; do a=$(ancho_tty) && echo "$a" > "$ANCHO_ARCH.tmp" && mv -f "$ANCHO_ARCH.tmp" "$ANCHO_ARCH"; done ) &
 
 echo "== PANEL EN VIVO (Ctrl+C para salir) =="
 # El historial se lee hasta el tamano de antes de conectar: lo que guarde el panel no se cuenta dos veces.
