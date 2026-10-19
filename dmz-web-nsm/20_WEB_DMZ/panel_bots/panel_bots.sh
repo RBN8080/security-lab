@@ -2,13 +2,78 @@
 # Panel de bots - nivel SERVIDOR (Debian DMZ). Solo lectura.
 # Junta: peticiones web (Apache), detecciones del WAF (ModSecurity) y baneos (fail2ban).
 # Complementa Security Onion (red, https://192.168.1.200) y ver_alarma_dmz.ps1 (contencion).
-#   bash panel_bots.sh            -> EN VIVO (Ctrl+C para salir): cada peticion anotada
-#   bash panel_bots.sh resumen    -> foto: top IPs, codigos, ultimas detecciones WAF, baneos
-# Pide la clave sudo de Debian (no se guarda).
+#   bash panel_bots.sh               -> EN VIVO desde Debian (pide la clave sudo; Ctrl+C para salir)
+#   bash panel_bots.sh local [N]     -> EN VIVO desde logs/access_vivo.log, sin clave (necesita
+#                                       transmitir_vivo.sh corriendo); arranca con las ultimas N (40)
+#   bash panel_bots.sh resumen       -> foto: top IPs, codigos, ultimas detecciones WAF, baneos
+# Columnas de ancho fijo, ajustadas al ancho de la ventana (sin navegador si es angosta).
+# Sin colores: NO_COLOR=1 bash panel_bots.sh ...
 S="-o BatchMode=yes"; MODO="${1:-vivo}"
-if [ -t 0 ]; then read -rsp "Clave sudo de Debian (no se guarda): " PW; echo; else read -r PW; fi
+DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+COLS=${COLS:-$(tput cols 2>/dev/null)}; [ "${COLS:-0}" -ge 60 ] 2>/dev/null || COLS=120
+
+pedir_clave() { if [ -t 0 ]; then read -rsp "Clave sudo de Debian (no se guarda): " PW; echo; else read -r PW; fi; }
+
+# Lee lineas del access.log de Apache (formato combinado) y las pinta en columnas.
+formatear() {
+  awk -v cols="$COLS" -v nocolor="${NO_COLOR:-}" '
+function corta(s, n) { return (length(s) > n) ? substr(s, 1, n - 1) "~" : s }
+function pinta(txt, c) { return (nocolor != "" || c == "") ? txt : "\033[" c "m" txt "\033[0m" }
+function cabecera() {
+  print pinta(sprintf("%-8s  %-15s %-3s  %-9s %-7s %-" wp "s%s", "HORA", "IP", "COD", "ETIQUETA",
+                      "METODO", "RUTA", (wua ? " | NAVEGADOR" : "")), "1")
+}
+function etiqueta(   lp) {
+  lp = tolower(p)
+  if (ua ~ /vigilante-lab/) return "PROPIO"
+  if (m == "-") return (req ~ /^\\x16\\x03/) ? "TLS" : "ROTA"
+  if (m !~ /^(GET|HEAD|POST)$/) return "METODO"
+  if (lp ~ /(\.\.\/|%2e%2e|%ad|allow_url_include|auto_prepend_file|eval-stdin|invokefunction|pearcmd|\/bin\/(ba)?sh|cgi-bin|base64_decode|union.+select|<script|[$][{]jndi|\/containers\/json|\/images\/json|169\.254\.169\.254|=(https?|php|data|file):)/) return "ATAQUE"
+  if (lp ~ /wp-login\.php/) return "LOGIN"
+  if (lp ~ /xmlrpc\.php/) return "XMLRPC"
+  if (lp ~ /(\/\.env|\/\.git|\/\.aws|\/\.ssh|\/\.docker|\/\.ds_store|\/\.ht|wp-config|phpmyadmin|\/vendor\/|\.bak|\.sql|\.old|\.swp|\.zip|\.tar|backup|readme|phpinfo|server-(status|info)|config\.(json|js|php|ya?ml)|composer\.(json|lock)|package(-lock)?\.json|yarn\.lock|credentials|secrets?\.|settings\.|docker-compose|\.(map|ya?ml|ini|log|conf|cfg|toml|key|pem)$)/) return "SONDEO"
+  if (lp ~ /\.php/ && code == "404") return "WEBSHELL"
+  if (code == "403" || code == "401") return "BLOQUEADO"
+  if (code == "404") return "404"
+  if (code ~ /^[23]/) return "ok"
+  return code
+}
+BEGIN {
+  wua = (cols >= 110) ? 24 : 0
+  # fijo: hora 8+2, ip 15+1, codigo 3+2, etiqueta 9+1, metodo 7+1; reserva 4 para " !!"
+  wp = cols - 49 - (wua ? wua + 3 : 0) - 4; if (wp < 20) wp = 20
+  color["ok"] = "32"; color["PROPIO"] = "2"; color["SONDEO"] = "33"; color["WEBSHELL"] = "33;1"
+  color["ATAQUE"] = "31;1"; color["LOGIN"] = "35"; color["XMLRPC"] = "35"; color["METODO"] = "36"
+  color["TLS"] = "2"; color["ROTA"] = "2"; color["BLOQUEADO"] = "31"
+  print pinta("ok=visita normal  SONDEO=busca secretos o archivos olvidados  WEBSHELL=busca puertas traseras .php", "2")
+  print pinta("ATAQUE=intenta ejecutar algo  LOGIN/XMLRPC=panel de WordPress  METODO=metodo raro (OPTIONS, CONNECT...)", "2")
+  print pinta("TLS/ROTA=conexion rota o en otro idioma  BLOQUEADO=403  PROPIO=latido del vigilante  !!=200 a algo sospechoso: revisar", "2")
+  cabecera()
+  re = "^([^ ]+) [^ ]+ [^ ]+ \\[([^]]+)\\] \"(.*)\" ([0-9]{3}|-) [^ ]+( \"(.*)\" \"(.*)\")?$"
+}
+{
+  if (!match($0, re, a)) { print pinta(corta("?? " $0, cols - 1), "2"); fflush(); next }
+  ip = a[1]; req = a[3]; code = a[4]; ua = a[7]
+  t = a[2]; sub(/^[^:]*:/, "", t); sub(/ .*/, "", t)
+  if (match(req, /^([A-Za-z_]+) ([^ ]+)( HTTP\/[0-9.]+)?$/, r)) { m = r[1]; p = r[2] }
+  else { m = "-"; p = "(" req ")" }
+  e = etiqueta()
+  linea = sprintf("%-8s  %-15s %-3s  ", t, ip, code) pinta(sprintf("%-9s", e), color[e]) \
+          sprintf(" %-7s %-" wp "s", corta(m, 7), corta(p, wp))
+  if (wua) linea = linea " | " corta((ua == "" || ua == "-") ? "(sin navegador)" : ua, wua)
+  # !! como el vigilante: 200 sospechoso fuera de la portada (WordPress ignora la carga y da la
+  # portada normal) y de los index.php vacios de fabrica
+  base = p; sub(/\?.*/, "", base)
+  if (code ~ /^2/ && e ~ /^(SONDEO|WEBSHELL|ATAQUE)$/ && base !~ /^\/(index\.php)?$/ &&
+      base !~ /^\/wp-content\/((themes|plugins|uploads)\/)?index\.php$/) linea = linea " " pinta("!!", "31;1")
+  print linea
+  if (++n % 40 == 0) cabecera()
+  fflush()
+}'
+}
 
 if [ "$MODO" = resumen ]; then
+  pedir_clave
   { printf '%s\n' "$PW"; cat <<'REMOTE'
 export LC_ALL=C; L=/var/log/apache2/access.log
 echo "===== PETICIONES (desde que arranco el log) ====="
@@ -26,29 +91,16 @@ REMOTE
   exit 0
 fi
 
-echo "== PANEL EN VIVO (Ctrl+C para salir).  hora  IP  codigo  etiqueta  metodo ruta  navegador =="
+if [ "$MODO" = local ]; then
+  ARCH="$DIR/logs/access_vivo.log"
+  [ -f "$ARCH" ] || { echo "ERROR: no existe $ARCH (corre transmitir_vivo.sh primero)"; exit 1; }
+  echo "== PANEL EN VIVO desde $ARCH (Ctrl+C para salir) =="
+  tail -n "${2:-40}" -F "$ARCH" 2>/dev/null | formatear
+  exit 0
+fi
+
+pedir_clave
+echo "== PANEL EN VIVO desde Debian (Ctrl+C para salir) =="
 # La clave se consume en Debian (read -r P) y el tail -f sigue vivo (no depende de stdin).
-printf '%s\n' "$PW" | ssh $S rpi5 "ssh $S debian 'read -r P; echo \"\$P\" | sudo -S -p \"\" tail -n 0 -f /var/log/apache2/access.log'" 2>/dev/null \
-| awk '
-function tag(code, path) {
-  if (path ~ /wp-login\.php/)                         return "LOGIN   ";
-  if (path ~ /xmlrpc\.php/)                           return "XMLRPC  ";
-  if (path ~ /(wp-config|\/\.env|\/\.git|phpmyadmin|\/vendor\/|\.bak|\.sql|readme|\/\.)/) return "SONDEO  ";
-  if (code == 403 || code == 401)                     return "BLOQUEADO";
-  if (code == 404)                                    return "404     ";
-  if (code ~ /^(200|301|302|304)$/)                   return "ok      ";
-  return code"     ";
-}
-{
-  ip=$1; code=$9;
-  # hora entre corchetes: [16/Oct/2026:22:40:01
-  h=$4; gsub(/.*:/,"",h);           # deja ss; mejor tomar HH:MM:SS
-  t=$4; sub(/^\[[0-9]+\/[A-Za-z]+\/[0-9]+:/,"",t); sub(/ .*/,"",t);
-  # metodo y ruta: campo 6 y 7
-  m=$6; gsub(/"/,"",m); p=$7;
-  # navegador: ultimo campo entre comillas (resumido)
-  ua=$0; sub(/.*" "/,"",ua); gsub(/".*/,"",ua);
-  short=ua; if (length(short)>28) short=substr(short,1,28);
-  printf "%s  %-15s %3s  %-9s %s %s  | %s\n", t, ip, code, tag(code,p), m, p, short;
-  fflush();
-}'
+printf '%s\n' "$PW" | ssh $S rpi5 "ssh $S debian 'read -r P; echo \"\$P\" | sudo -S -p \"\" tail -n 20 -f /var/log/apache2/access.log'" 2>/dev/null \
+| formatear
