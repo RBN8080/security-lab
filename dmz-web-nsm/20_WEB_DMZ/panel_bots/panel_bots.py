@@ -192,30 +192,54 @@ class Memoria:
 class Pantalla:
     def __init__(self, cols, color):
         self.color = color
-        self.wl = 26 if cols >= 110 else 0     # LUGAR
-        self.wr = 16 if cols >= 130 else 0     # RED
-        self.wua = 24 if cols >= 165 else 0    # NAVEGADOR
-        fijo = 8 + 2 + 15 + 1 + 6 + 1 + 3 + 2 + 9 + 1 + 7 + 1   # hasta METODO; 4 de reserva para " !!"
-        self.wp = max(20, cols - fijo - (self.wl + 1 if self.wl else 0) - (self.wr + 1 if self.wr else 0)
-                      - (self.wua + 3 if self.wua else 0) - 4)
         self.filas = 0
+        self.calcula(cols)
+
+    def calcula(self, cols):
+        """LUGAR siempre (16 a 26); METODO, RED y NAVEGADOR solo si queda ruta de sobra."""
+        self.cols = cols = max(cols, 60)
+        self.wm = 7 if cols >= 100 else 0                                  # METODO
+        fijo = 8 + 2 + 15 + 1 + 6 + 1 + 3 + 2 + 9 + 1 + (self.wm + 1 if self.wm else 0)
+        resto = cols - fijo - 4                                            # 4 de reserva para " !!"
+        self.wl = max(16, min(26, resto - 20))                             # LUGAR
+        resto -= self.wl + 1
+        self.wr = 16 if resto - 17 >= 24 else 0                            # RED
+        resto -= self.wr + 1 if self.wr else 0
+        self.wua = 24 if resto - 27 >= 30 else 0                           # NAVEGADOR
+        resto -= self.wua + 3 if self.wua else 0
+        self.wp = max(10, resto)                                           # RUTA
+
+    def ajusta(self, cols):
+        """La ventana cambio de ancho: recalcular columnas y repetir la cabecera."""
+        if cols and max(cols, 60) != self.cols:
+            self.calcula(cols)
+            self.cabecera()
 
     def pinta(self, txt, c):
         return "\033[%sm%s\033[0m" % (c, txt) if (self.color and c) else txt
 
     def escribe(self, texto):
-        try:
-            print(texto, flush=True)
-        except OSError:  # la ventana se cerro (en Windows llega como EINVAL)
-            os._exit(0)
+        while True:
+            try:
+                print(texto, flush=True)
+                return
+            except BlockingIOError:  # la terminal va atrasada: esperar, no morir
+                time.sleep(0.05)
+            except OSError as e:     # la ventana se cerro
+                try:
+                    sys.stderr.write("visor: no se pudo escribir en la ventana (%s)\n" % e)
+                except OSError:
+                    pass
+                os._exit(3)
 
     def cabecera(self):
-        t = "%-8s  %-15s %-6s " % ("HORA", "IP", "VISTA")
-        if self.wl:
-            t += "%-*s " % (self.wl, "LUGAR")
+        t = "%-8s  %-15s %-6s %-*s " % ("HORA", "IP", "VISTA", self.wl, "LUGAR")
         if self.wr:
             t += "%-*s " % (self.wr, "RED")
-        t += "%-3s  %-9s %-7s %-*s" % ("COD", "ETIQUETA", "METODO", self.wp, "RUTA")
+        t += "%-3s  %-9s " % ("COD", "ETIQUETA")
+        if self.wm:
+            t += "%-7s " % "METODO"
+        t += "%-*s" % (self.wp, "RUTA")
         if self.wua:
             t += " | NAVEGADOR"
         self.escribe(self.pinta(t, "1"))
@@ -231,12 +255,16 @@ class Pantalla:
     def fila(self, d):
         v = d["vista"]
         t = "%-8s  %-15s " % (d["hora"], d["ip"]) + self.pinta("%-6s" % v, COLOR.get(v, "2")) + " "
-        if self.wl:
-            t += "%-*s " % (self.wl, corta(d["lugar"], self.wl))
+        t += "%-*s " % (self.wl, corta(d["lugar"], self.wl))
         if self.wr:
             t += "%-*s " % (self.wr, corta(d["red"], self.wr))
-        t += "%-3s  " % d["code"] + self.pinta("%-9s" % d["tag"], COLOR.get(d["tag"], ""))
-        t += " %-7s %-*s" % (corta(d["m"], 7), self.wp, corta(d["p"], self.wp))
+        t += "%-3s  " % d["code"] + self.pinta("%-9s" % d["tag"], COLOR.get(d["tag"], "")) + " "
+        if self.wm:
+            t += "%-7s " % corta(d["m"], 7)
+            ruta = d["p"]
+        else:  # sin columna METODO: el metodo va delante de la ruta si no es GET
+            ruta = d["p"] if d["m"] in ("GET", "-") else d["m"] + " " + d["p"]
+        t += "%-*s" % (self.wp, corta(ruta, self.wp))
         if self.wua:
             t += " | " + corta(d["ua"] if d["ua"] not in ("", "-") else "(sin navegador)", self.wua)
         if d["alerta"]:
@@ -331,6 +359,7 @@ def main():
     ap.add_argument("--mostrar", type=int, default=40)
     ap.add_argument("--historial-bytes", type=int,
                     help="leer solo los primeros N bytes: el tamano del log antes de que el panel empiece a guardar")
+    ap.add_argument("--ancho-archivo", help="archivo donde panel_bots.sh deja el ancho actual de la ventana")
     args = ap.parse_args()
     sys.stdin.reconfigure(encoding="utf-8", errors="replace")
     sys.stdout.reconfigure(encoding="utf-8", errors="replace", newline="\n")
@@ -368,15 +397,24 @@ def main():
             cola.put(linea)
         cola.put(None)
 
+    def ancho():
+        try:
+            with open(args.ancho_archivo) as f:
+                return int(f.read().strip() or 0)
+        except (TypeError, OSError, ValueError):
+            return 0
+
     threading.Thread(target=lector, daemon=True).start()
     while True:
         try:
             linea = cola.get(timeout=1)
         except queue.Empty:
+            pantalla.ajusta(ancho())
             rafagas.vence(time.time())
             continue
         if linea is None:
             break
+        pantalla.ajusta(ancho())
         d = analizar(linea.rstrip("\r\n"), geo)
         if d is None:
             pantalla.nota(corta("?? " + linea.rstrip("\r\n"), cols - 1))
