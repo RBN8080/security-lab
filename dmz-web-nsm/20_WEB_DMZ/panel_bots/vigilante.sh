@@ -3,7 +3,7 @@
 # Cada 30 s revisa la web en vivo; cada 5 min hace la revision completa. Anota "ALERTA ..." en
 # reportes/alertas.log y SIGUE vigilando (un sensor parado es un punto ciego; avisa despertador.sh) si:
 #   WEB      = ataque a la web: rafaga de AVISO_4XX+ errores 4xx, POST externo, 5xx o 200 en un .php raro
-#              (necesita transmitir_vivo.sh corriendo; espera a que la rafaga acabe y la resume).
+#              (necesita panel_bots.sh o transmitir_vivo.sh abierto alimentando el log; espera a que la rafaga acabe y la resume).
 #              Rafagas de 10 a AVISO_4XX-1 solo 4xx = reconocimiento: van a ataques_auto.log sin alertar.
 #              Campana repetida (rutas >= 90 % iguales a una ya vista, reportes/campanas/) sin POST, 5xx
 #              ni 200 fuera de portada/estaticos/index.php vacios: se anota sin alertar.
@@ -81,7 +81,7 @@ ruido_apt() {
     END { print "#APT " apt + 0 }'
 }
 
-# --- web en vivo (lee lo que transmitir_vivo.sh va dejando en $WEB) ---
+# --- web en vivo (lee lo que panel_bots.sh o transmitir_vivo.sh van dejando en $WEB) ---
 pos=0; [ -f "$WEB" ] && pos=$(wc -c < "$WEB")
 nuevas() {
   [ -f "$WEB" ] || return 0
@@ -173,7 +173,7 @@ while [ "$(date +%s)" -lt "$fin" ]; do
 
     if [ -f "$WEB" ] && [ "$ronda" -gt 0 ]; then
       if [ "$latido" = 1 ]; then ffeed=0; else ffeed=$((ffeed + 1)); fi
-      [ "$ffeed" -eq 2 ] && alerta "FEED: la transmision en vivo no llega (reinicia transmitir_vivo.sh)"
+      [ "$ffeed" -eq 2 ] && alerta "FEED: la transmision en vivo no llega (reabre panel_bots.sh o transmitir_vivo.sh)"
     fi
     latido=0
 

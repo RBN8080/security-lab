@@ -1,7 +1,8 @@
 #!/usr/bin/env bash
 # Transmite EN VIVO el access.log de Apache (Debian) a panel_bots/logs/access_vivo.log
 # para que vigilante.sh detecte ataques web sin sudo. Solo lectura en Debian.
-# Uso (en una ventana de Git Bash, NO con "!"): bash transmitir_vivo.sh
+# Con panel_bots.sh abierto NO hace falta: el panel ya guarda el log. Sirve para alimentar al vigilante
+# sin panel. Uso (en una ventana de Git Bash, NO con "!"): bash transmitir_vivo.sh
 #   Dejar la ventana abierta; Ctrl+C para parar. Si se cae la conexion, reintenta sola.
 # La clave sudo vive solo en la memoria de esta ventana mientras corre; no se escribe en disco.
 DIR="${PANEL_DATOS:-/d/VMware_LAB/_lab/panel_bots}"  # datos en el taller, se corra desde donde se corra

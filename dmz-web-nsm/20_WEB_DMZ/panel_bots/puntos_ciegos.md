@@ -5,7 +5,7 @@ Siguiendo el marco ADS de Palantir: cómo puede no disparar cada detección y c�
 ## Supuestos
 - El host está encendido, despierto y con la sesión abierta. Si se suspende o reinicia, se paran el vigilante y el despertador, y **nadie avisa** (no hay latido fuera de banda).
 - La Pi 5 está arriba: todas las lecturas pasan por ella. Si cae, CIEGO avisa a los 15 min.
-- `transmitir_vivo.sh` sigue corriendo con la clave en su ventana. Si cae, FEED avisa a los 10 min.
+- `panel_bots.sh` (o `transmitir_vivo.sh`) sigue abierto alimentando `logs/access_vivo.log`. Si cae, FEED avisa a los 10 min.
 - La hora de pfSense (UTC) y la de Debian están sincronizadas por NTP; la regla de apt compara ambas.
 
 ## WEB (access.log de Apache en vivo)

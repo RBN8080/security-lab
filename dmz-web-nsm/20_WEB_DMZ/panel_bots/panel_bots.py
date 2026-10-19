@@ -329,6 +329,8 @@ def main():
     ap.add_argument("--geoip", default=os.path.join(os.path.dirname(os.path.abspath(__file__)), "geoip"))
     ap.add_argument("--historial")
     ap.add_argument("--mostrar", type=int, default=40)
+    ap.add_argument("--historial-bytes", type=int,
+                    help="leer solo los primeros N bytes: el tamano del log antes de que el panel empiece a guardar")
     args = ap.parse_args()
     sys.stdin.reconfigure(encoding="utf-8", errors="replace")
     sys.stdout.reconfigure(encoding="utf-8", errors="replace", newline="\n")
@@ -347,11 +349,12 @@ def main():
     # El historial solo alimenta la memoria; de el se muestran las ultimas N lineas como contexto
     if args.historial and os.path.isfile(args.historial):
         ultimas = collections.deque(maxlen=max(args.mostrar, 0))
-        with open(args.historial, encoding="utf-8", errors="replace") as f:
-            for linea in f:
-                d = analizar(linea.rstrip("\r\n"), geo)
-                if d:
-                    ultimas.append(memoria.vista(d))
+        with open(args.historial, "rb") as f:
+            datos = f.read(args.historial_bytes) if args.historial_bytes is not None else f.read()
+        for linea in datos.decode("utf-8", errors="replace").splitlines():
+            d = analizar(linea, geo)
+            if d:
+                ultimas.append(memoria.vista(d))
         if ultimas:
             pantalla.nota("--- ultimas %d del historial ---" % len(ultimas))
             for d in ultimas:
