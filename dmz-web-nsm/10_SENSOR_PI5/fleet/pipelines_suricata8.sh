@@ -16,7 +16,7 @@
 set -eo pipefail
 
 TIPOS="mdns quic bittorrent_dht anomaly stats"
-BODY='{"description":"home-network-monitoring: tipo de Suricata 8 sin sub-pipeline en SO 3.3.0; campos comunes via suricata.common","processors":[{"set":{"field":"event.module","value":"suricata","override":false}}]}'
+BODY='{"description":"dmz-web-nsm: tipo de Suricata 8 sin sub-pipeline en SO 3.3.0; campos comunes via suricata.common","processors":[{"set":{"field":"event.module","value":"suricata","override":false}}]}'
 
 for t in $TIPOS; do
 	p="suricata.$t"

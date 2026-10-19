@@ -1,8 +1,8 @@
-# Home network monitoring
+# dmz-web-nsm
 
 *[Leer en español](README.es.md)*
 
-A WordPress site deliberately exposed to the Internet —hardened, and boxed into a DMZ— and the monitoring that watches who shows up and what they ask for. Part of [Security Lab](../README.md).
+Contained web exposure with network security monitoring: a WordPress instance deliberately published to the Internet —hardened and confined to a pfSense DMZ— and the NSM stack that records who connects and what they request. Part of [Security Lab](../README.md).
 
 ## How a visit travels
 
@@ -20,14 +20,14 @@ Internet ──► VPS 203.0.113.10 (24/7)
                WordPress · PHP 8.4 · MariaDB
 ```
 
-Why a VPS: the home line sits behind carrier-grade NAT, so port forwarding never works. The tunnel is outbound from the DMZ, so nothing is opened at home.
+Why a VPS: the upstream link sits behind carrier-grade NAT, so inbound port forwarding is impossible. The tunnel is initiated outbound from the DMZ, so no inbound port is opened on the local network.
 
 ## Containment
 
 DMZ rules on pfSense, in order:
 
 1. DNS and NTP to pfSense — allowed.
-2. Anything to RFC 1918 (home LAN, internal lab, NAS) — **blocked and logged**. A hit means someone inside the DMZ is trying to move.
+2. Anything to RFC 1918 (internal LAN, lab segments, storage) — **blocked and logged**. A hit means someone inside the DMZ is trying to move.
 3. Internet 80/443 — disabled; opened briefly only to patch.
 4. UDP 51820 to the VPS — allowed (the tunnel).
 5. Everything else — blocked.
@@ -39,7 +39,7 @@ Approach: lock everything down before opening, then remove locks one at a time t
 ## Watching
 
 - **Security Onion** (VM) sees the DMZ through a capture interface and receives pfSense block events by syslog.
-- **Raspberry Pi 5** runs Suricata + Zeek on the home switch's mirror port and ships to Security Onion with Elastic Agent. It only runs while the SOC answers (`10_SENSOR_PI5/auto/`).
+- **Raspberry Pi 5** runs Suricata + Zeek on a managed switch mirror (SPAN) port and ships to Security Onion with Elastic Agent. It only runs while the SOC answers (`10_SENSOR_PI5/auto/`).
 - **`panel_bots/`** — shell watcher on the host. Streams Apache's access log live and alerts on bursts, POSTs, 5xx, odd `.php` 200s, file changes under the web root, DMZ egress attempts, outages and loss of visibility; repeated campaigns are grouped. Its blind spots are written down per detection, Palantir ADS style (`panel_bots/puntos_ciegos.md`).
 
 ## First full day, in aggregate

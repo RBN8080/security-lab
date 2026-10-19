@@ -32,7 +32,7 @@ echo "== Politica $POLICY"
 if fleet_api "agent_policies/$POLICY" >/dev/null; then
 	echo "ya existe"
 else
-	elastic_fleet_policy_create "$POLICY" "Pi 5 sensor LAN real (home-network-monitoring D-10)" "false" "1209600" >/dev/null
+	elastic_fleet_policy_create "$POLICY" "Pi 5 sensor LAN real (dmz-web-nsm D-10)" "false" "1209600" >/dev/null
 	echo "creada"
 fi
 

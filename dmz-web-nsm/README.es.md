@@ -1,8 +1,8 @@
-# Monitoreo de la red de casa
+# dmz-web-nsm
 
 *[Read in English](README.md)*
 
-Un WordPress expuesto a Internet a propósito —endurecido y encajonado en una DMZ— y el monitoreo que observa quién llega y qué pide. Parte de [Security Lab](../README.es.md).
+Exposición web contenida con monitoreo de seguridad de red: un WordPress publicado a Internet a propósito —endurecido y confinado en una DMZ de pfSense— y el stack NSM que registra quién se conecta y qué pide. Parte de [Security Lab](../README.es.md).
 
 ## Recorrido de una visita
 
@@ -20,14 +20,14 @@ Internet ──► VPS 203.0.113.10 (24/7)
                WordPress · PHP 8.4 · MariaDB
 ```
 
-Por qué un VPS: la conexión de casa está detrás de CGNAT y el reenvío de puertos no funciona nunca. El túnel sale de la DMZ, así que en casa no se abre nada.
+Por qué un VPS: el enlace de salida está detrás de CGNAT y el reenvío de puertos entrante es imposible. El túnel se inicia desde la DMZ hacia afuera, así que no se abre ningún puerto entrante en la red local.
 
 ## Contención
 
 Reglas de la DMZ en pfSense, en orden:
 
 1. DNS y NTP a pfSense — permitido.
-2. Cualquier cosa hacia RFC 1918 (LAN de casa, lab interno, NAS) — **bloqueado y registrado**. Un registro aquí significa que alguien dentro de la DMZ intenta moverse.
+2. Cualquier cosa hacia RFC 1918 (LAN interna, segmentos del laboratorio, almacenamiento) — **bloqueado y registrado**. Un registro aquí significa que alguien dentro de la DMZ intenta moverse.
 3. Internet 80/443 — desactivado; se abre un rato solo para parchar.
 4. UDP 51820 al VPS — permitido (el túnel).
 5. Todo lo demás — bloqueado.
@@ -39,7 +39,7 @@ Enfoque: cerrar todo antes de abrir y luego quitar candados uno a uno para obser
 ## Vigilancia
 
 - **Security Onion** (VM) ve la DMZ por una interfaz de captura y recibe por syslog los bloqueos de pfSense.
-- **Raspberry Pi 5** corre Suricata + Zeek sobre el puerto espejo del switch de casa y envía a Security Onion con Elastic Agent. Solo corre mientras el SOC responde (`10_SENSOR_PI5/auto/`).
+- **Raspberry Pi 5** corre Suricata + Zeek sobre el puerto espejo (SPAN) de un switch administrado y envía a Security Onion con Elastic Agent. Solo corre mientras el SOC responde (`10_SENSOR_PI5/auto/`).
 - **`panel_bots/`** — vigilante en shell en el host. Lee en vivo el log de Apache y alerta por ráfagas, POST, 5xx, 200 en `.php` raros, cambios de archivos en la raíz web, intentos de salida de la DMZ, caídas y pérdida de visibilidad; agrupa campañas repetidas. Sus puntos ciegos están escritos por detección, al estilo ADS de Palantir (`panel_bots/puntos_ciegos.md`).
 
 ## Primer día completo, en agregado
