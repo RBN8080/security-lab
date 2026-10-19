@@ -3,7 +3,8 @@
 # Solo lectura en Debian. Pide la clave sudo (no se guarda).
 # Uso (en una ventana de Git Bash, NO desde un terminal sin teclado: hay que teclear la clave):
 #   bash copiar_logs.sh   -> deja los archivos en panel_bots/logs/
-DIR="$(cd "$(dirname "$0")" && pwd)/logs"; mkdir -p "$DIR"
+DIR="${PANEL_DATOS:-/d/VMware_LAB/_lab/panel_bots}"  # datos en el taller, se corra desde donde se corra
+[ -d "$DIR" ] || DIR="$(cd "$(dirname "$0")" && pwd)"; DIR="$DIR/logs"; mkdir -p "$DIR"
 [ -t 0 ] || { echo "ERROR: no hay teclado para la clave. Abre Git Bash y correlo ahi."; exit 1; }
 read -rsp "Clave sudo de Debian (no se guarda): " PW; echo
 [ -n "$PW" ] || { echo "ERROR: clave vacia"; exit 1; }

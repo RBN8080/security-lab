@@ -40,7 +40,7 @@ Approach: lock everything down before opening, then remove locks one at a time t
 
 - **Security Onion** (VM) sees the DMZ through a capture interface and receives pfSense block events by syslog.
 - **Raspberry Pi 5** runs Suricata + Zeek on a managed switch mirror (SPAN) port and ships to Security Onion with Elastic Agent. It only runs while the SOC answers (`10_SENSOR_PI5/auto/`).
-- **`panel_bots/`** — shell watcher on the host. Streams Apache's access log live and alerts on bursts, POSTs, 5xx, odd `.php` 200s, file changes under the web root, DMZ egress attempts, outages and loss of visibility; repeated campaigns are grouped. Its blind spots are written down per detection, Palantir ADS style (`panel_bots/puntos_ciegos.md`).
+- **`panel_bots/`** — shell watcher on the host. Streams Apache's access log live and alerts on bursts, POSTs, 5xx, odd `.php` 200s, file changes under the web root, DMZ egress attempts, outages and loss of visibility; repeated campaigns are grouped. Each line shows city, country and network owner (ASN) from a local DB-IP Lite database, so no address is sent to third parties. Its blind spots are written down per detection, Palantir ADS style (`panel_bots/puntos_ciegos.md`).
 
 ## First full day, in aggregate
 

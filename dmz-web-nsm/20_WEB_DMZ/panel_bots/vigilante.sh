@@ -17,7 +17,8 @@
 # Uso (Git Bash en el host): bash vigilante.sh [minutos=5] [horas=10]
 # Bitacoras: vigilante.log (una linea por ronda), reportes/alertas.log y reportes/ataques_auto.log.
 
-DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+DIR="${PANEL_DATOS:-/d/VMware_LAB/_lab/panel_bots}"  # datos en el taller, se corra desde donde se corra
+[ -d "$DIR" ] || DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 MIN=${1:-5}; HORAS=${2:-10}; TICK=30
 URL=https://sitio-ejemplo.duckdns.org/
 UA_PROPIO="vigilante-lab"

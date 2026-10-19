@@ -4,7 +4,8 @@
 # Uso (en una ventana de Git Bash, NO con "!"): bash transmitir_vivo.sh
 #   Dejar la ventana abierta; Ctrl+C para parar. Si se cae la conexion, reintenta sola.
 # La clave sudo vive solo en la memoria de esta ventana mientras corre; no se escribe en disco.
-DIR="$(cd "$(dirname "$0")" && pwd)/logs"; mkdir -p "$DIR"; OUT="$DIR/access_vivo.log"
+DIR="${PANEL_DATOS:-/d/VMware_LAB/_lab/panel_bots}"  # datos en el taller, se corra desde donde se corra
+[ -d "$DIR" ] || DIR="$(cd "$(dirname "$0")" && pwd)"; DIR="$DIR/logs"; mkdir -p "$DIR"; OUT="$DIR/access_vivo.log"
 S="-o BatchMode=yes -o ServerAliveInterval=30"
 [ -t 0 ] || { echo "ERROR: no hay teclado para la clave. Abre Git Bash y correlo ahi."; exit 1; }
 read -rsp "Clave sudo de Debian (no se guarda): " PW; echo
