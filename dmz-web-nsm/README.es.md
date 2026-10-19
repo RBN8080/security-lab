@@ -40,7 +40,7 @@ Enfoque: cerrar todo antes de abrir y luego quitar candados uno a uno para obser
 
 - **Security Onion** (VM) ve la DMZ por una interfaz de captura y recibe por syslog los bloqueos de pfSense.
 - **Raspberry Pi 5** corre Suricata + Zeek sobre el puerto espejo (SPAN) de un switch administrado y envía a Security Onion con Elastic Agent. Solo corre mientras el SOC responde (`10_SENSOR_PI5/auto/`).
-- **`panel_bots/`** — vigilante en shell en el host. Lee en vivo el log de Apache y alerta por ráfagas, POST, 5xx, 200 en `.php` raros, cambios de archivos en la raíz web, intentos de salida de la DMZ, caídas y pérdida de visibilidad; agrupa campañas repetidas. Cada línea muestra ciudad, país y dueño de la red (ASN) desde una base local DB-IP Lite, así que ninguna dirección se envía a terceros. Sus puntos ciegos están escritos por detección, al estilo ADS de Palantir (`panel_bots/puntos_ciegos.md`).
+- **`panel_bots/`** — vigilante en shell en el host. Lee en vivo el log de Apache y alerta por ráfagas, POST, 5xx, 200 en `.php` raros, cambios de archivos en la raíz web, intentos de salida de la DMZ, caídas y pérdida de visibilidad; agrupa campañas repetidas. Cada línea muestra ciudad, país y dueño de la red (ASN) desde una base local DB-IP Lite —ninguna dirección se envía a terceros— y si la dirección es nueva o ya vino; cuando una fuente calla tras una ráfaga, un resumen en palabras simples dice qué buscaba y si consiguió algo. Sus puntos ciegos están escritos por detección, al estilo ADS de Palantir (`panel_bots/puntos_ciegos.md`).
 
 ## Primer día completo, en agregado
 
