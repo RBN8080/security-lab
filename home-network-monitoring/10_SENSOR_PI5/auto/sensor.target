@@ -1,0 +1,7 @@
+# sensor.target — agrupa el sensor de red de la Pi 5 (rector §7.23)
+# Sin [Install]: no arranca solo al encender la Pi. Lo enciende y apaga sensor-vigia
+# segun responda el SOC, o a mano con `sudo sensor encender|apagar`.
+[Unit]
+Description=Sensor de red LAN real (Suricata + Zeek + envio al SOC)
+Wants=suricata.service sensor-zeek.service elastic-agent.service
+After=network-online.target docker.service

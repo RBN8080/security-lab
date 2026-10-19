@@ -1,0 +1,7 @@
+# IPs destino de SALIDA (Debian -> internet) ya revisadas y benignas. Una por linea.
+# Solo servicios con IP fija. Lo que va por CDN (apt -> Fastly) NO va aqui: lo reconoce ruido_apt por contexto.
+# 2026-10-17: WordPress (wp-cron, www-data) buscando actualizaciones en api.wordpress.org
+66.6.42.251
+# 2026-10-17: acme.sh (cron diario de root) consultando Let's Encrypt acme-v02.api.letsencrypt.org
+172.65.32.248
+# Quitados 2026-10-17: espejos de gnome-software (apagado; si vuelven, que avise) y 7 IPs Fastly de apt.

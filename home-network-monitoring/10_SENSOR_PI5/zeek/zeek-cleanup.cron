@@ -1,0 +1,1 @@
+0 * * * * root find /opt/zeek/logs -type f -name "*.log*" -mtime +7 -delete

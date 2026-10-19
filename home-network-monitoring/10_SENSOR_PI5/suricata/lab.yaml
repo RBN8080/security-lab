@@ -1,0 +1,31 @@
+%YAML 1.1
+---
+# Lab: Pi5 (4 GB) como sensor de la LAN real 192.168.1.0/24
+af-packet:
+  - interface: eth0
+    threads: 2
+    cluster-id: 99
+    cluster-type: cluster_flow
+    defrag: yes
+    use-mmap: yes
+    tpacket-v3: yes
+    ring-size: 2048
+    block-size: 65536
+
+max-pending-packets: 1024
+
+defrag:
+  memcap: 32mb
+flow:
+  memcap: 128mb
+  hash-size: 65536
+  prealloc: 10000
+stream:
+  memcap: 256mb
+  reassembly:
+    memcap: 384mb
+    depth: 1mb
+host:
+  memcap: 32mb
+detect:
+  profile: medium

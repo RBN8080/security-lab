@@ -1,0 +1,15 @@
+# sensor-zeek.service — el contenedor zeek, gobernado por systemd (rector §7.23)
+# El contenedor se crea en aprovisionar_sensor.sh con --restart no: aqui systemd
+# es el unico que lo arranca, lo vigila y lo detiene.
+[Unit]
+Description=Sensor: Zeek (contenedor zeek)
+Requires=docker.service
+After=docker.service network-online.target
+PartOf=sensor.target
+
+[Service]
+ExecStart=/usr/bin/docker start -a zeek
+ExecStop=/usr/bin/docker stop -t 30 zeek
+SuccessExitStatus=143
+Restart=on-failure
+RestartSec=10

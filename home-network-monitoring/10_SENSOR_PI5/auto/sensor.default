@@ -1,0 +1,4 @@
+# /etc/default/sensor — ajustes del vigia (rector §7.23). Valores por defecto en /usr/local/sbin/sensor.
+#SOC_URL=https://soc-lab:8220/api/status
+#SOC_CA=/etc/ssl/so-lab/ca.crt
+#GRACIA=300

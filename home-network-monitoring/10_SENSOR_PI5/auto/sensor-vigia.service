@@ -1,0 +1,37 @@
+# sensor-vigia.service — una pasada del vigia; la lanza sensor-vigia.timer (rector §7.23)
+[Unit]
+Description=Vigia del sensor: enciende/apaga segun responda el SOC
+After=network-online.target
+
+[Service]
+Type=oneshot
+ExecStart=/usr/local/sbin/sensor vigilar
+RuntimeDirectory=sensor-vigia
+RuntimeDirectoryPreserve=yes
+TimeoutStartSec=30
+# Endurecimiento (charter §6.2): solo necesita red, leer la CA y hablar con systemd
+NoNewPrivileges=yes
+ProtectSystem=strict
+ProtectHome=yes
+PrivateTmp=yes
+PrivateDevices=yes
+ProtectKernelTunables=yes
+ProtectKernelModules=yes
+ProtectKernelLogs=yes
+ProtectControlGroups=yes
+ProtectClock=yes
+ProtectHostname=yes
+RestrictSUIDSGID=yes
+RestrictNamespaces=yes
+RestrictRealtime=yes
+LockPersonality=yes
+MemoryDenyWriteExecute=yes
+RestrictAddressFamilies=AF_UNIX AF_INET AF_INET6
+SystemCallArchitectures=native
+SystemCallFilter=@system-service
+CapabilityBoundingSet=
+ProtectProc=invisible
+UMask=0077
+# Solo puede hablar con el SOC (soc-lab sale de /etc/hosts, no hace falta DNS)
+IPAddressDeny=any
+IPAddressAllow=192.168.1.200

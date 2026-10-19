@@ -1,0 +1,89 @@
+#!/bin/sh
+# sensor — enciende el sensor de la Pi 5 cuando el SOC responde y lo apaga cuando deja de responder
+#
+# Rector: ../../rector.md §7.23. Instalado en /usr/local/sbin/sensor por instalar_auto.sh.
+#
+#   sensor vigilar     lo ejecuta sensor-vigia.timer cada minuto (no hace falta a mano)
+#   sensor estado      que modo hay, si el SOC responde y que esta encendido
+#   sensor auto        vuelve al modo automatico
+#   sensor manual      el vigia deja de tocar el sensor (p. ej. durante un estudio de tracertIP)
+#   sensor encender    modo manual + enciende el sensor
+#   sensor apagar      modo manual + apaga el sensor
+#
+# El SOC "responde" solo si Fleet devuelve HEALTHY por TLS verificado con la CA de
+# Security Onion: otro equipo con la IP del SOC no enciende nada. La Pi decide; el
+# SOC no tiene llaves ni permisos sobre la Pi.
+
+set -u
+
+SOC_URL=https://soc-lab:8220/api/status
+SOC_CA=/etc/ssl/so-lab/ca.crt
+GRACIA=300 # segundos sin respuesta del SOC antes de apagar (evita apagar por un corte breve)
+# shellcheck source=/dev/null
+[ -r /etc/default/sensor ] && . /etc/default/sensor
+
+MANUAL=/etc/sensor/manual
+VISTO=/run/sensor-vigia/visto # ultima vez que el SOC respondio; se borra al reiniciar
+SERVICIOS="suricata.service sensor-zeek.service elastic-agent.service"
+
+soc_responde() {
+	curl -sf --max-time 5 --cacert "$SOC_CA" "$SOC_URL" 2>/dev/null | grep -q '"status":"HEALTHY"'
+}
+
+# Algo en pie: el target o cualquiera de sus servicios (para apagar).
+# shellcheck disable=SC2086
+alguno_activo() { systemctl is-active -q sensor.target $SERVICIOS; }
+
+# Todo en pie: cada servicio, no solo el target (que sigue "active" aunque un servicio caiga).
+todos_activos() {
+	for s in $SERVICIOS; do systemctl is-active -q "$s" || return 1; done
+}
+
+
+vigilar() {
+	[ -e "$MANUAL" ] && exit 0
+	ahora=$(date +%s)
+	if soc_responde; then
+		echo "$ahora" >"$VISTO"
+		if ! todos_activos; then
+			echo "SOC disponible: enciendo el sensor"
+			# shellcheck disable=SC2086
+			systemctl start --no-block sensor.target $SERVICIOS
+		fi
+		return
+	fi
+	alguno_activo || return 0
+	visto=$(cat "$VISTO" 2>/dev/null || echo 0)
+	sin=$((ahora - visto))
+	if [ "$sin" -ge "$GRACIA" ]; then
+		echo "SOC sin respuesta (${sin}s >= ${GRACIA}s): apago el sensor"
+		systemctl stop --no-block sensor.target
+	else
+		echo "SOC sin respuesta hace ${sin}s; apago a los ${GRACIA}s si sigue asi"
+	fi
+}
+
+estado() {
+	if [ -e "$MANUAL" ]; then echo "Modo:    MANUAL (el vigia no toca el sensor; volver: sensor auto)"; else echo "Modo:    automatico"; fi
+	if soc_responde; then echo "SOC:     responde (Fleet HEALTHY, TLS verificado)"; else echo "SOC:     no responde"; fi
+	if todos_activos; then echo "Sensor:  ENCENDIDO"
+	elif alguno_activo; then echo "Sensor:  PARCIAL (algun servicio caido o arrancando)"
+	else echo "Sensor:  apagado"; fi
+	for s in $SERVICIOS; do printf '         %-24s %s\n' "$s" "$(systemctl is-active "$s")"; done
+}
+
+# Las ordenes que cambian algo se reejecutan con sudo solas: `sensor manual` basta
+# (sudo no busca en /usr/local/sbin, asi que `sudo sensor` no funcionaria).
+case "${1:-estado}" in
+auto | manual | encender | apagar) [ "$(id -u)" -eq 0 ] || exec sudo "$0" "$@" ;;
+esac
+
+case "${1:-estado}" in
+vigilar) vigilar ;;
+estado) estado ;;
+auto) rm -f "$MANUAL"; echo "Modo automatico: el vigia decide en el proximo minuto" ;;
+manual) install -d /etc/sensor; touch "$MANUAL"; echo "Modo manual: el sensor se queda como esta" ;;
+encender) install -d /etc/sensor; touch "$MANUAL"; systemctl start sensor.target; estado ;;
+apagar) install -d /etc/sensor; touch "$MANUAL"; systemctl stop sensor.target; estado ;;
+*) sed -n '6,11p' "$0" | sed 's/^# //'; exit 2 ;;
+esac
