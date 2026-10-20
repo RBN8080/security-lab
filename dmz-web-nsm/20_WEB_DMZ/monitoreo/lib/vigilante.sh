@@ -1,9 +1,9 @@
 #!/usr/bin/env bash
 # Vigilante del honeypot. Solo lectura: no cambia nada en ninguna maquina.
 # Cada 30 s revisa la web en vivo; cada 5 min hace la revision completa. Anota "ALERTA ..." en
-# reportes/alertas.log y SIGUE vigilando (un sensor parado es un punto ciego; avisa despertador.sh) si:
+# reportes/alertas.log, lo muestra en esta ventana y SIGUE vigilando (un sensor parado es un punto ciego) si:
 #   WEB      = ataque a la web: rafaga de AVISO_4XX+ errores 4xx, POST externo, 5xx o 200 en un .php raro
-#              (necesita panel_bots.sh o transmitir_vivo.sh abierto alimentando el log; espera a que la rafaga acabe y la resume).
+#              (necesita el panel abierto, que guarda el log; espera a que la rafaga acabe y la resume).
 #              Rafagas de 10 a AVISO_4XX-1 solo 4xx = reconocimiento: van a ataques_auto.log sin alertar.
 #              Campana repetida (rutas >= 90 % iguales a una ya vista, reportes/campanas/) sin POST, 5xx
 #              ni 200 fuera de portada/estaticos/index.php vacios: se anota sin alertar.
@@ -14,25 +14,26 @@
 #   CAIDA    = la web publica no da 200 en 3 rondas seguidas
 #   CIEGO    = no pude leer Debian o pfSense en 3 rondas seguidas
 # Los estados (FEED, CAIDA, CIEGO) avisan una vez por episodio, no en cada ronda.
-# Uso (Git Bash en el host): bash vigilante.sh [minutos=5] [horas=10]
-# Bitacoras: vigilante.log (una linea por ronda), reportes/alertas.log y reportes/ataques_auto.log.
+# Uso: bash monitor.sh vigilar [minutos=5] [horas=10]
+# Bitacoras (en datos/): vigilante/vigilante.log (una linea por ronda), reportes/alertas.log y
+# reportes/ataques_auto.log. Listas: config/vigilante_ignorar.txt y config/rangos_fastly.txt.
 
-DIR="${PANEL_DATOS:-/d/VMware_LAB/_lab/panel_bots}"  # datos en el taller, se corra desde donde se corra
-[ -d "$DIR" ] || DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+. "$(dirname "${BASH_SOURCE[0]}")/comun.sh"
+V="$DATOS/vigilante"; mkdir -p "$V"     # bitacora, fotos de /var/www/html y temporales
 MIN=${1:-5}; HORAS=${2:-10}; TICK=30
-URL=https://sitio-ejemplo.duckdns.org/
+URL=$WEB_PUBLICA
 UA_PROPIO="vigilante-lab"
-LOG="$DIR/vigilante.log"
-FOTO="$DIR/vigilante_foto_$(date +%Y%m%d_%H%M).txt"
-VISTOS="$DIR/.vigilante_vistos"
-IGNORAR="$DIR/vigilante_ignorar.txt"
-WEB="$DIR/logs/access_vivo.log"
-ATAQUES="$DIR/reportes/ataques_auto.log"; mkdir -p "$DIR/reportes"
-ALERTAS="$DIR/reportes/alertas.log"
-RANGOS="$DIR/rangos_fastly.txt"
+LOG="$V/vigilante.log"
+FOTO="$V/foto_$(date +%Y%m%d_%H%M).txt"
+VISTOS="$V/.vistos"
+IGNORAR="$CONFIG/vigilante_ignorar.txt"
+WEB="$ARCH"
+ATAQUES="$DATOS/reportes/ataques_auto.log"
+ALERTAS="$DATOS/reportes/alertas.log"
+RANGOS="$CONFIG/rangos_fastly.txt"
 VENTANA_APT=1200   # s tras un disparo de los timers de apt en los que su salida bloqueada es ruido
 AVISO_4XX=50       # 4xx en una rafaga para alertar (debajo solo se anota)
-CAMPANAS="$DIR/reportes/campanas"; mkdir -p "$CAMPANAS"
+CAMPANAS="$DATOS/reportes/campanas"; mkdir -p "$CAMPANAS"
 # index.php vacios de fabrica de WordPress ("Silence is golden"); ARCHIVOS vigila que no cambien
 VACIOS='^/wp-content/((themes|plugins|uploads)/)?index[.]php$'
 
@@ -51,7 +52,7 @@ bloqueos() {
     "ssh -o ConnectTimeout=10 pfsense 'grep em2,match,block /var/log/filter.log | tail -n 500'"
 }
 
-# Mismo formato que costura3/ver_alarma_dmz.ps1 (hora en UTC)
+# Mismo formato que monitor.sh contencion (aqui la hora va en UTC)
 formato() {
   awk -F': ' '{ split($2, c, ","); t = (c[4] == "1791590554") ? "CONTENCION" : "SALIDA";
     p = (c[17] == "tcp" || c[17] == "udp") ? ":" c[22] : "";
@@ -81,7 +82,7 @@ ruido_apt() {
     END { print "#APT " apt + 0 }'
 }
 
-# --- web en vivo (lee lo que panel_bots.sh o transmitir_vivo.sh van dejando en $WEB) ---
+# --- web en vivo (lee lo que el panel va dejando en $WEB) ---
 pos=0; [ -f "$WEB" ] && pos=$(wc -c < "$WEB")
 nuevas() {
   [ -f "$WEB" ] || return 0
@@ -114,7 +115,7 @@ resumen() {
 rutas() { awk '{ p = $7; sub(/\?.*/, "", p); gsub(/%2[Ff]/, "/", p); gsub(/\/+/, "/", p); print p }' | sort -u; }
 # Imprime la campana ya vista que coincide >= 90 % (Jaccard); si no hay, guarda esta como nueva
 campana_vista() {
-  local f a b c r="$DIR/.vigilante_rutas_tmp"; rutas > "$r"; a=$(wc -l < "$r")
+  local f a b c r="$V/.rutas_tmp"; rutas > "$r"; a=$(wc -l < "$r")
   for f in "$CAMPANAS"/*.txt; do [ -f "$f" ] || continue
     b=$(wc -l < "$f"); c=$(comm -12 "$r" "$f" | wc -l)
     [ $((c * 100)) -ge $(( (a + b - c) * 90 )) ] && { basename "$f" .txt; return; }
@@ -126,7 +127,7 @@ sensibles200() {
   awk -v vacios="$VACIOS" '$9 == 200 { p = $7; sub(/\?.*/, "", p)
     if (p != "/" && p !~ /\.(js|css|png|jpe?g|gif|svg|ico|woff2?)$/ && p !~ vacios) n++ } END { print n + 0 }'
 }
-TMPW="$DIR/.vigilante_web_tmp"
+TMPW="$V/.web_tmp"
 revisar_web() {
   local n ext m acum quietos=0 t0
   nuevas > "$TMPW"; n=$(cat "$TMPW"); [ -z "$n" ] && return   # sin subshell: nuevas actualiza pos
@@ -157,9 +158,9 @@ revisar_web() {
 
 # --- arranque ---
 huellas > "$FOTO"
-[ -s "$FOTO" ] || { echo "ALERTA CIEGO: no pude tomar la foto inicial de Debian"; exit 2; }
-bloqueos > "$VISTOS" || { echo "ALERTA CIEGO: no pude leer pfSense"; exit 2; }
-feed="sin transmision (web en vivo apagada)"; [ -f "$WEB" ] && feed="web en vivo ON"
+[ -s "$FOTO" ] || fallo "CIEGO: no pude tomar la foto inicial de Debian (Pi 5 o Debian apagados?)"
+bloqueos > "$VISTOS" || fallo "CIEGO: no pude leer pfSense"
+feed="sin log en vivo (abre el panel: bash monitor.sh)"; [ -f "$WEB" ] && feed="web en vivo ON"
 log "INICIO cada $MIN min por $HORAS h; foto $(wc -l < "$FOTO") archivos; $feed"
 echo "vigilante arriba: foto de $(wc -l < "$FOTO") archivos, cada $MIN min por $HORAS h; $feed"
 
@@ -173,7 +174,7 @@ while [ "$(date +%s)" -lt "$fin" ]; do
 
     if [ -f "$WEB" ] && [ "$ronda" -gt 0 ]; then
       if [ "$latido" = 1 ]; then ffeed=0; else ffeed=$((ffeed + 1)); fi
-      [ "$ffeed" -eq 2 ] && alerta "FEED: la transmision en vivo no llega (reabre panel_bots.sh o transmitir_vivo.sh)"
+      [ "$ffeed" -eq 2 ] && alerta "FEED: la transmision en vivo no llega (reabre el panel: bash monitor.sh)"
     fi
     latido=0
 
@@ -185,10 +186,10 @@ while [ "$(date +%s)" -lt "$fin" ]; do
     if [ -z "$ahora" ]; then ciego=1; else
       dif=$(diff "$FOTO" <(echo "$ahora"))
       if [ -n "$dif" ]; then
-        echo "$dif" > "$DIR/vigilante_diff_$(date +%Y%m%d_%H%M).txt"
+        echo "$dif" > "$V/diff_$(date +%Y%m%d_%H%M).txt"
         alerta "ARCHIVOS: cambiaron $(echo "$dif" | grep -c '^[<>]') lineas en /var/www/html" "$(echo "$dif" | head -10)"
         arch=CAMBIO   # nueva referencia: cada cambio posterior alerta aparte
-        FOTO="$DIR/vigilante_foto_$(date +%Y%m%d_%H%M).txt"; echo "$ahora" > "$FOTO"
+        FOTO="$V/foto_$(date +%Y%m%d_%H%M).txt"; echo "$ahora" > "$FOTO"
       fi
     fi
 
@@ -221,3 +222,4 @@ while [ "$(date +%s)" -lt "$fin" ]; do
 done
 log "FIN de turno: $HORAS h sin novedad"
 echo "FIN: $HORAS h sin novedad"
+pausa

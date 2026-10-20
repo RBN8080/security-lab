@@ -40,7 +40,7 @@ Enfoque: cerrar todo antes de abrir y luego quitar candados uno a uno para obser
 
 - **Security Onion** (VM) ve la DMZ por una interfaz de captura y recibe por syslog los bloqueos de pfSense.
 - **Raspberry Pi 5** corre Suricata + Zeek sobre el puerto espejo (SPAN) de un switch administrado y envía a Security Onion con Elastic Agent. Solo corre mientras el SOC responde (`10_SENSOR_PI5/auto/`).
-- **`panel_bots/`** — vigilante en shell en el host. Lee en vivo el log de Apache y alerta por ráfagas, POST, 5xx, 200 en `.php` raros, cambios de archivos en la raíz web, intentos de salida de la DMZ, caídas y pérdida de visibilidad; agrupa campañas repetidas. Cada línea muestra ciudad, país y dueño de la red (ASN) desde una base local DB-IP Lite —ninguna dirección se envía a terceros— y si la dirección es nueva o ya vino; cuando una fuente calla tras una ráfaga, un resumen en palabras simples dice qué buscaba y si consiguió algo. Sus puntos ciegos están escritos por detección, al estilo ADS de Palantir (`panel_bots/puntos_ciegos.md`).
+- **`monitoreo/`** — un solo comando, `monitor.sh`: panel en vivo, vigilante, alarma de contención, chequeo previo. Entre ellos leen en vivo el log de Apache y alertan por ráfagas, POST, 5xx, 200 en `.php` raros, cambios de archivos en la raíz web, intentos de salida de la DMZ, caídas y pérdida de visibilidad; agrupa campañas repetidas. Cada línea muestra ciudad, país y dueño de la red (ASN) desde una base local DB-IP Lite —ninguna dirección se envía a terceros— y si la dirección es nueva o ya vino; cuando una fuente calla tras una ráfaga, un resumen en palabras simples dice qué buscaba y si consiguió algo. Los puntos ciegos están escritos por detección, al estilo ADS de Palantir (`monitoreo/puntos_ciegos.md`).
 
 ## Primer día completo, en agregado
 
@@ -54,12 +54,12 @@ Enfoque: cerrar todo antes de abrir y luego quitar candados uno a uno para obser
 | Ruta | Qué |
 |---|---|
 | `10_SENSOR_PI5/` | Sensor de red en la Pi 5: config de Suricata/Zeek, aprovisionamiento, política de Fleet, encendido según el SOC |
-| `20_WEB_DMZ/costura3/` | Publicar la DMZ: NAT de pfSense, cierre de salida, verificación previa, alarma de contención |
+| `20_WEB_DMZ/costura3/` | Publicar la DMZ: NAT de pfSense, cierre de salida |
 | `20_WEB_DMZ/https/` | Certificado por DNS-01 |
 | `20_WEB_DMZ/edge/` | VPS: WireGuard + nginx stream + ufw; vhost de Apache con PROXY protocol |
 | `20_WEB_DMZ/debian_endurecer/` · `blindaje_fuerte/` · `waf_fail2ban/` | Capas de endurecimiento, cada una con aplicar y revertir |
 | `20_WEB_DMZ/wordpress/` | Lista blanca de cabecera Host |
-| `20_WEB_DMZ/panel_bots/` | Vigilante en vivo y sus puntos ciegos |
+| `20_WEB_DMZ/monitoreo/` | `monitor.sh`: panel en vivo, vigilante, alarma de contención, chequeo previo, actualización GeoIP; puntos ciegos |
 
 ## Antes de ejecutar nada
 

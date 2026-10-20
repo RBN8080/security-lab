@@ -40,7 +40,7 @@ Approach: lock everything down before opening, then remove locks one at a time t
 
 - **Security Onion** (VM) sees the DMZ through a capture interface and receives pfSense block events by syslog.
 - **Raspberry Pi 5** runs Suricata + Zeek on a managed switch mirror (SPAN) port and ships to Security Onion with Elastic Agent. It only runs while the SOC answers (`10_SENSOR_PI5/auto/`).
-- **`panel_bots/`** — shell watcher on the host. Streams Apache's access log live and alerts on bursts, POSTs, 5xx, odd `.php` 200s, file changes under the web root, DMZ egress attempts, outages and loss of visibility; repeated campaigns are grouped. Each line shows city, country and network owner (ASN) from a local DB-IP Lite database —no address is sent to third parties— and whether the address is new or returning; when a source goes quiet after a burst, a one-line plain-language summary says what it was after and whether it got anything. Its blind spots are written down per detection, Palantir ADS style (`panel_bots/puntos_ciegos.md`).
+- **`monitoreo/`** — one command, `monitor.sh`: live panel, watcher, containment alarm, pre-flight check. Together they stream Apache's access log live and alert on bursts, POSTs, 5xx, odd `.php` 200s, file changes under the web root, DMZ egress attempts, outages and loss of visibility; repeated campaigns are grouped. Each line shows city, country and network owner (ASN) from a local DB-IP Lite database —no address is sent to third parties— and whether the address is new or returning; when a source goes quiet after a burst, a one-line plain-language summary says what it was after and whether it got anything. Blind spots are written down per detection, Palantir ADS style (`monitoreo/puntos_ciegos.md`).
 
 ## First full day, in aggregate
 
@@ -54,12 +54,12 @@ Approach: lock everything down before opening, then remove locks one at a time t
 | Path | What |
 |---|---|
 | `10_SENSOR_PI5/` | Pi 5 network sensor: Suricata/Zeek config, provisioning, Fleet policy, on/off by SOC health |
-| `20_WEB_DMZ/costura3/` | Publishing the DMZ: pfSense NAT, egress lockdown, pre-flight check, containment alarm |
+| `20_WEB_DMZ/costura3/` | Publishing the DMZ: pfSense NAT, egress lockdown |
 | `20_WEB_DMZ/https/` | Certificate by DNS-01 |
 | `20_WEB_DMZ/edge/` | VPS: WireGuard + nginx stream + ufw; Apache vhost with PROXY protocol |
 | `20_WEB_DMZ/debian_endurecer/` · `blindaje_fuerte/` · `waf_fail2ban/` | Hardening layers, each with apply and revert |
 | `20_WEB_DMZ/wordpress/` | Host-header allowlist |
-| `20_WEB_DMZ/panel_bots/` | Live watcher and its blind spots |
+| `20_WEB_DMZ/monitoreo/` | `monitor.sh`: live panel, watcher, containment alarm, pre-flight check, GeoIP update; blind spots |
 
 ## Before running anything
 

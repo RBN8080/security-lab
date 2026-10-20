@@ -7,8 +7,8 @@ codigo, ETIQUETA, metodo, ruta y navegador. Cuando una IP deja de pedir RAFAGA_P
 y llevaba RAFAGA_MIN peticiones o mas, escribe un resumen de la rafaga en palabras simples.
 Solo lee: no cambia nada en ninguna maquina.
 
-Uso (lo llama panel_bots.sh):
-  ... | python -u panel_bots.py --geoip DIR [--historial access_vivo.log] [--mostrar N]
+Uso (lo llama lib/panel.sh, es decir: bash monitor.sh):
+  ... | python -u visor.py --geoip DIR [--historial access_vivo.log] [--mostrar N]
   --historial: log del taller; da el "ya vino otro dia" y las ultimas N lineas de contexto.
 Ancho de la ventana: variable COLS. Sin colores: NO_COLOR=1.
 En IPs de nube la ciudad es aproximada (donde el proveedor registra el rango); la red es fiable.
